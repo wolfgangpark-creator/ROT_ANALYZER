@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Z-ROT ANALYZER</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --bg:#0b0d14; --bg1:#10121c; --bg2:#161924; --bg3:#1d2030;
+  --border:#252840; --text1:#e4e8f5; --text2:#8892b0; --text3:#454d6a;
+  --accent:#f76707; --blue:#4dabf7; --green:#69db7c; --red:#ff6b6b;
+  --yellow:#ffd43b; --purple:#da77f2; --cyan:#63e6be;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text1);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh}
+
+/* ── 헤더 ── */
+.header{position:sticky;top:0;z-index:200;background:var(--bg1);border-bottom:1px solid var(--border);
+  padding:0 24px;height:50px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.logo{font-size:16px;font-weight:800;letter-spacing:-.5px}
+.logo .z{color:var(--accent)} .logo .r{color:var(--blue)}
+.logo .v{font-size:10px;color:var(--text3);font-weight:400;margin-left:5px}
+.header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* ── 설정바 ── */
+.settings{background:var(--bg1);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sg{display:flex;align-items:center;gap:5px}
+.sg label{font-size:11px;color:var(--text3);white-space:nowrap}
+.sg input{background:var(--bg3);border:1px solid var(--border);color:var(--text1);padding:4px 7px;border-radius:5px;font-size:12px;width:80px}
+.sep{width:1px;height:20px;background:var(--border)}
+.unit-toggle{display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.unit-btn{padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);transition:all .15s}
+.unit-btn.active{background:var(--accent);color:#fff}
+.s-info{font-size:11px;color:var(--text3);padding-left:12px;border-left:1px solid var(--border)}
+.s-info b{color:var(--blue)}
+
+/* ── 버튼 ── */
+.btn{padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn-o{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.btn-o:hover{border-color:var(--text2);color:#fff}
+.btn-r{background:transparent;border:1px solid rgba(255,107,107,.3);color:var(--red)}
+.btn-r:hover{border-color:var(--red);background:rgba(255,107,107,.08)}
+
+/* ── 업로드 ── */
+.upload-wrap{padding:28px 24px}
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:52px;text-align:center;cursor:pointer;background:var(--bg1);transition:all .2s}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:rgba(247,103,7,.04)}
+.drop-icon{font-size:40px;margin-bottom:12px;opacity:.4}
+.drop-title{font-size:16px;font-weight:700;color:#fff;margin-bottom:5px}
+.drop-sub{font-size:12px;color:var(--text3)}
+#fileIn{display:none}
+
+/* ── 경고 ── */
+.warn-box{margin:16px 24px;padding:12px 16px;border-radius:8px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:12px;display:none}
+.warn-box.show{display:flex;align-items:center;gap:8px}
+
+/* ── 콘텐츠 ── */
+.content{padding:0 24px 28px;display:none}
+
+/* ── 차트 카드 ── */
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.card-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:12px}
+.card-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:3px}
+.card-meta{font-size:11px;color:var(--text3);line-height:1.8}
+.card-meta b{color:var(--text2)}
+.card-acts{display:flex;gap:7px;flex-shrink:0}
+
+/* ── 테이블 카드 ── */
+.table-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px;overflow-x:auto}
+.table-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.table-title{font-size:14px;font-weight:700;color:#fff}
+.unit-info{font-size:11px;color:var(--text3)}
+.unit-info b{color:var(--yellow)}
+
+/* ── 분석 테이블 ── */
+.atbl{border-collapse:collapse;width:100%;font-size:11px;min-width:600px}
+.atbl th,.atbl td{border:1px solid var(--border);padding:0}
+.atbl th{background:var(--bg3);color:var(--text2);font-weight:600;text-align:center;padding:5px 8px;white-space:nowrap}
+.atbl td{text-align:center;vertical-align:middle}
+
+/* 절점 행 (각도 표시) */
+.row-angle td{background:rgba(29,32,48,0.6);height:20px}
+.angle-cell{color:var(--text2);font-weight:700;font-size:10px;padding:0 8px;text-align:left !important}
+
+/* 구간 행 - 측정값+델타 하나의 행으로 통합 */
+.row-gap td{height:auto;padding:0}
+/* 셀 내부: 측정값 위, 델타 아래 */
+.cell-inner{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cell-meas{height:22px;display:flex;align-items:center;justify-content:center;width:100%}
+.cell-delta{height:11px;display:flex;align-items:center;justify-content:center;width:100%}
+.cell-dev{height:33px;display:flex;align-items:center;justify-content:center;width:100%}
+
+.val-cell{padding:0 6px;font-variant-numeric:tabular-nums;font-size:12px;font-weight:500}
+.val-cell.partial{color:var(--text3) !important}
+.val-cell.down-val{color:#ffffff}
+.val-cell.up-val{color:#69db7c}
+.val-cell.dev-val{color:var(--yellow)}
+.val-cell.empty{color:var(--text3);opacity:0.3}
+.delta-txt{font-size:10px;font-variant-numeric:tabular-nums}
+.delta-txt.delta-max{font-weight:700;font-size:12px}
+.delta-txt.delta-min{font-weight:700;font-size:12px}
+
+/* Total 행 */
+.row-total td{background:rgba(29,32,48,0.8);border-top:2px solid var(--border)}
+.total-label{padding:5px 8px;color:var(--accent);font-weight:800;font-size:17px;text-align:left !important}
+.total-val{padding:5px 6px;font-weight:700;font-size:11px}
+.total-val.total-meas{font-size:17px;font-weight:800;color:var(--accent)}
+.total-ok{color:var(--green)}
+.total-warn{color:var(--red)}
+
+/* 그룹 헤더 */
+.th-group-down{background:rgba(77,171,247,0.12) !important;color:var(--blue) !important;border-bottom:2px solid rgba(77,171,247,0.3) !important}
+.th-group-up{background:rgba(105,219,124,0.12) !important;color:var(--green) !important;border-bottom:2px solid rgba(105,219,124,0.3) !important}
+.th-dev{background:rgba(255,212,59,0.1) !important;color:var(--yellow) !important}
+.th-sub-down{color:#74c0fc !important}
+.th-sub-up{color:#69db7c !important}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><span class="z">miLab</span> <span class="r">Z-axis Assembly Checker</span><span class="v">v1.0</span></div>
+  <div class="header-right">
+    <span id="fileNameLabel" style="font-size:11px;color:var(--text3)"></span>
+    <button class="btn btn-o" onclick="resetAll()">↺ 초기화</button>
+  </div>
+</div>
+
+<div class="settings">
+  <div class="sg"><label>구간 인터벌 (ustep)</label><input type="number" id="interval" value="6400" min="1"></div>
+  <div class="sg"><label>총 분주수</label><input type="number" id="totalSteps" value="51200" min="1"></div>
+  <div class="sg"><label>리드 (mm)</label><input type="number" id="lead" value="0.25" step="0.001"></div>
+  <div class="sg"><label>이동 횟수</label><input type="number" id="moveCount" value="16" min="1"></div>
+  <div class="sep"></div>
+  <div class="sg"><label>정지창 (ms)</label><input type="number" id="stopWindowMs" value="20" min="1" title="이동 시간보다 짧게 설정. 권장: 10~30ms"></div>
+  <div class="sg"><label>정지변화 (μm)</label><input type="number" id="stopThreshUm" value="0.5" step="0.1" min="0.1" title="정지 중 변화 < 이 값. 데이터 분해능의 5~10배 권장"></div>
+  <div class="sg"><label>최소샘플</label><input type="number" id="minSamp" value="50" min="1" title="정지로 인정할 최소 샘플 수. 너무 작으면 가짜 절점 발생"></div>
+  <div class="sg"><label>샘플링 (μs)</label><input type="number" id="samplingUs" value="1000" min="1"></div>
+  <div class="s-info" id="detectInfo" style="color:var(--text3);font-size:11px"></div>
+  <div class="sep"></div>
+  <div class="sg"><label>단위</label>
+    <div class="unit-toggle">
+      <button class="unit-btn" id="btnUm" onclick="setUnit('um')">μm</button>
+      <button class="unit-btn active" id="btnMm" onclick="setUnit('mm')">mm</button>
+    </div>
+  </div>
+  <div class="s-info" id="stepInfo"></div>
+</div>
+
+<div class="warn-box" id="warnBox">
+  <span>⚠</span><span id="warnMsg"></span>
+</div>
+
+<div class="upload-wrap" id="uploadWrap">
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileIn').click()">
+    <div class="drop-icon">📂</div>
+    <div class="drop-title">CSV 파일을 드래그하거나 클릭해서 선택</div>
+    <div class="drop-sub">헤더 4행 · 1열 위치값(mm) · 샘플링 1000μs</div>
+  </div>
+  <input type="file" id="fileIn" accept=".csv,.txt">
+</div>
+
+<div class="content" id="content">
+  <div id="chartArea"></div>
+  <div id="tableArea"></div>
+</div>
+
+<script>
+// ── 상태 ──────────────────────────────────────────────────────
+let currentUnit = 'mm';
+let analysisResult = null;
+let chartInst = null;
+
+// ── 설정 ──────────────────────────────────────────────────────
+function S() {
+  return {
+    interval:      parseInt(document.getElementById('interval').value)      || 6400,
+    totalSteps:    parseInt(document.getElementById('totalSteps').value)     || 51200,
+    lead:          parseFloat(document.getElementById('lead').value)         || 0.25,
+    moveCount:     parseInt(document.getElementById('moveCount').value)      || 16,
+    stopWindowMs:  parseFloat(document.getElementById('stopWindowMs').value) || 50,
+    stopThreshUm:  parseFloat(document.getElementById('stopThreshUm').value) || 100,
+    minSamp:       parseInt(document.getElementById('minSamp').value)        || 20,
+    samplingUs:    parseFloat(document.getElementById('samplingUs').value)   || 1000,
+  };
+}
+
+function updateInfo() {
+  const s = S();
+  const degPerInterval = (s.interval / s.totalSteps) * 360;
+  const segCount = s.totalSteps / s.interval;
+  document.getElementById('stepInfo').innerHTML =
+    `인터벌 <b>${degPerInterval.toFixed(1)}°</b> &nbsp;·&nbsp; 1바퀴 <b>${segCount.toFixed(0)}구간</b>`;
+
+  // 정지 감지 안내: 정지변화가 클수록 이동 구간을 정지로 오인 위험
+  const thUm = s.stopThreshUm;
+  const wsMs = s.stopWindowMs;
+  const infoEl = document.getElementById('detectInfo');
+  if (!infoEl) return;
+  if (thUm > 10) {
+    infoEl.innerHTML = `⚠ 정지변화 <b style="color:var(--red)">${thUm}μm</b> — 이동변위가 작은 경우 오인식 가능. <b>0.5~2μm</b> 권장`;
+  } else if (thUm < 0.2) {
+    infoEl.innerHTML = `⚠ 정지변화 <b style="color:var(--yellow)">${thUm}μm</b> — 너무 작으면 정지점 미감지 가능`;
+  } else {
+    infoEl.innerHTML = `정지창 <b>${wsMs}ms</b> &nbsp;·&nbsp; 정지변화 <b>${thUm}μm</b> &nbsp;·&nbsp; <span style="color:var(--green)">✓ 정상 범위</span>`;
+  }
+}
+
+document.querySelectorAll('.settings input').forEach(el => el.addEventListener('change', updateInfo));
+
+// ── 단위 토글 ──────────────────────────────────────────────────
+function setUnit(u) {
+  currentUnit = u;
+  document.getElementById('btnUm').classList.toggle('active', u === 'um');
+  document.getElementById('btnMm').classList.toggle('active', u === 'mm');
+  if (analysisResult) {
+    renderTable(analysisResult);
+    // polar 재렌더링 (canvas만 다시 그림)
+    const { processed, s, degPerInterval, segsPerRev } = analysisResult;
+    const pDown = processed.find(p => p.dir === 'down');
+    const pUp   = processed.find(p => p.dir === 'up');
+    const theorDisp = s.lead * (s.interval / s.totalSteps);
+    drawPolarCanvas('polarDown', pDown, theorDisp, degPerInterval, segsPerRev, '#4dabf7');
+    drawPolarCanvas('polarUp',   pUp,   theorDisp, degPerInterval, segsPerRev, '#69db7c');
+  }
+}
+
+function fmt(mmVal) {
+  if (currentUnit === 'um') return (mmVal * 1000).toFixed(2);
+  return mmVal.toFixed(4);
+}
+
+// ── 드래그드롭 & 파일입력 ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  updateInfo();
+  const zone = document.getElementById('dropZone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const f = [...e.dataTransfer.files].find(f => /\.(csv|txt)$/i.test(f.name));
+    if (f) loadFile(f);
+  });
+  document.getElementById('fileIn').addEventListener('change', function() {
+    if (this.files[0]) loadFile(this.files[0]);
+    this.value = '';
+  });
+});
+
+function loadFile(f) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const pos = parseCSV(e.target.result);
+    if (!pos || pos.length < 100) { alert('데이터 부족 또는 형식 오류'); return; }
+    document.getElementById('fileNameLabel').textContent = f.name;
+    analyze(pos);
+  };
+  reader.readAsText(f);
+}
+
+function parseCSV(text) {
+  const s = S();
+  const lines = text.split(/\r?\n/);
+  const pos = [];
+  for (let i = s.stopWindowMs !== undefined ? 4 : 4; i < lines.length; i++) {
+    const v = parseFloat(lines[i].split(',')[0]);
+    if (!isNaN(v)) pos.push(v);
+  }
+  return pos.length >= 100 ? pos : null;
+}
+
+// ── 정지점 감지 ────────────────────────────────────────────────
+function detectStops(pos, s) {
+  const sampMs = s.samplingUs / 1000;
+  const ws = Math.max(2, Math.round(s.stopWindowMs / sampMs));
+  const th = s.stopThreshUm / 1000;
+  const n = pos.length;
+  const isS = new Uint8Array(n);
+
+  for (let i = 0; i <= n - ws; i++) {
+    let lo = pos[i], hi = pos[i];
+    for (let j = i + 1; j < i + ws; j++) {
+      if (pos[j] < lo) lo = pos[j];
+      if (pos[j] > hi) hi = pos[j];
+    }
+    if (hi - lo < th) for (let j = i; j < i + ws; j++) isS[j] = 1;
+  }
+
+  const raw = [];
+  let inS = false, ss = 0;
+  for (let i = 0; i <= n; i++) {
+    const st = i < n ? isS[i] : 0;
+    if (st && !inS) { inS = true; ss = i; }
+    else if (!st && inS) {
+      const len = i - ss;
+      if (len >= s.minSamp) {
+        const slice = pos.slice(ss, i);
+        const rep = slice.slice().sort((a,b)=>a-b)[Math.floor(len/2)];
+        raw.push({ rep, start: ss, end: i-1, len });
+      }
+      inS = false;
+    }
+  }
+
+  // 인접 정지점 병합 (변위 10μm 미만)
+  const merged = [raw[0]];
+  for (let i = 1; i < raw.length; i++) {
+    if (Math.abs(raw[i].rep - merged[merged.length-1].rep) * 1000 < 10) {
+      if (raw[i].len > merged[merged.length-1].len) merged[merged.length-1] = raw[i];
+    } else {
+      merged.push(raw[i]);
+    }
+  }
+  return merged;
+}
+
+// ── 방향 분리 ──────────────────────────────────────────────────
+function splitDirections(stops) {
+  // 전체 방향 판정
+  const annotated = [{ ...stops[0], dir: 'start' }];
+  for (let i = 1; i < stops.length; i++) {
+    annotated.push({ ...stops[i], dir: stops[i].rep < stops[i-1].rep ? 'down' : 'up' });
+  }
+
+  // 방향 전환점 기준으로 그룹화
+  const groups = [];
+  let curDir = null, curGroup = [];
+
+  for (const s of annotated) {
+    if (s.dir === 'start') { curGroup = [s]; curDir = null; continue; }
+    if (curDir === null) {
+      curDir = s.dir;
+      curGroup.push(s);
+    } else if (s.dir === curDir) {
+      curGroup.push(s);
+    } else {
+      groups.push({ dir: curDir, stops: [...curGroup] });
+      curDir = s.dir;
+      curGroup = [curGroup[curGroup.length-1], s]; // 전환점 공유
+    }
+  }
+  if (curGroup.length > 1) groups.push({ dir: curDir, stops: curGroup });
+  return groups;
+}
+
+// ── 메인 분석 ──────────────────────────────────────────────────
+function analyze(pos) {
+  const s = S();
+  const stops = detectStops(pos, s);
+  if (!stops || stops.length < 3) {
+    const s2 = S();
+    alert(
+      `정지점을 충분히 찾지 못했습니다. (${stops ? stops.length : 0}개)\n\n` +
+      `현재 설정:\n  정지창: ${s2.stopWindowMs}ms\n  정지변화: ${s2.stopThreshUm}μm\n\n` +
+      `권장 설정:\n  정지창: 20ms\n  정지변화: 0.5μm\n  최소샘플: 10\n\n` +
+      `이동 변위가 작은 경우(수십 μm 수준) 정지변화를 0.5~2μm로 줄여주세요.`
+    );
+    return;
+  }
+
+  const groups = splitDirections(stops);
+
+  // 경고: 이동횟수 불일치 체크
+  const warnBox = document.getElementById('warnBox');
+  const warnMsg = document.getElementById('warnMsg');
+  const warns = [];
+  for (const g of groups) {
+    const detected = g.stops.length - 1;
+    const rem = detected % s.moveCount;
+    if (rem !== 0) {
+      warns.push(`${g.dir === 'down' ? '하강' : '상승'}: 감지 이동 ${detected}회 — 입력 ${s.moveCount}회의 배수 아님 (나머지 ${rem}). 최소샘플 값을 조정해보세요.`);
+    }
+  }
+  if (warns.length) {
+    warnMsg.textContent = warns.join(' | ');
+    warnBox.classList.add('show');
+  } else {
+    warnBox.classList.remove('show');
+  }
+
+  // 각도 계산
+  const degPerInterval = (s.interval / s.totalSteps) * 360;
+  const segsPerRev = Math.round(s.totalSteps / s.interval); // 1바퀴당 구간 수
+
+  // 각 방향 그룹 처리
+  const processed = groups.map(g => {
+    const totalMoves = g.stops.length - 1;
+    const fullRevs = Math.floor(totalMoves / segsPerRev);
+    const partialSegs = totalMoves % segsPerRev;
+    const revCount = fullRevs + (partialSegs > 0 ? 1 : 0);
+
+    const moves = [];
+    for (let i = 1; i < g.stops.length; i++) {
+      const disp = Math.abs(g.stops[i].rep - g.stops[i-1].rep);
+
+      let segIdx, revIdx;
+      if (g.dir === 'down') {
+        // Down: 순방향 (0→1→2→...→segsPerRev-1, 다음 회차...)
+        segIdx = (i - 1) % segsPerRev;
+        revIdx = Math.floor((i - 1) / segsPerRev);
+      } else {
+        // Up: 역순
+        // 이동[i]는 절점[i-1](높은쪽)→절점[i](낮은쪽) 이동
+        // 낮은쪽 절점의 누적 각도 = (totalMoves - i) * degPerInterval
+        // 이 구간은 낮은쪽~높은쪽, 즉 (totalMoves-i)*deg → (totalMoves-i+1)*deg
+        // segIdx = (totalMoves - i) % segsPerRev (낮은쪽 절점의 구간 내 위치)
+        // revIdx = floor((totalMoves - i) / segsPerRev)
+        const lowerStepIdx = totalMoves - i; // 낮은쪽 절점의 순서 인덱스
+        segIdx = lowerStepIdx % segsPerRev;
+        revIdx = Math.floor(lowerStepIdx / segsPerRev);
+      }
+
+      moves.push({ disp, segIdx, revIdx, startRep: g.stops[i-1].rep, endRep: g.stops[i].rep });
+    }
+
+    // Total per full rev
+    const totals = [];
+    for (let r = 0; r < fullRevs; r++) {
+      const startRep = g.stops[r * segsPerRev].rep;
+      const endRep   = g.stops[(r + 1) * segsPerRev].rep;
+      totals.push(Math.abs(endRep - startRep));
+    }
+
+    return { dir: g.dir, stops: g.stops, moves, fullRevs, partialSegs, revCount, totals, segsPerRev };
+  });
+
+  // 세그먼트별 편차 계산 (완전 회차만)
+  // segIdx별로 각 방향의 완전 회차 값들 모아서 max-min
+  for (const p of processed) {
+    p.devBySegIdx = [];
+    for (let si = 0; si < p.segsPerRev; si++) {
+      const vals = p.moves.filter(m => m.segIdx === si && m.revIdx < p.fullRevs).map(m => m.disp);
+      const dev = vals.length >= 2 ? Math.max(...vals) - Math.min(...vals) : null;
+      p.devBySegIdx.push(dev);
+    }
+  }
+
+  analysisResult = { pos, stops, groups, processed, s, degPerInterval, segsPerRev };
+
+  // 표시
+  document.getElementById('uploadWrap').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+
+  renderChart(analysisResult);
+  renderPolar(analysisResult);
+  render3D(analysisResult);
+  renderTable(analysisResult);
+}
+
+// ── 차트 렌더링 ────────────────────────────────────────────────
+function renderChart(res) {
+  const { pos, processed, stops, s, degPerInterval, segsPerRev } = res;
+  const sampMs = s.samplingUs / 1000;
+  const timeMs = pos.map((_, i) => i * sampMs);
+
+  const area = document.getElementById('chartArea');
+  area.innerHTML = `
+    <div class="chart-card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">위치 로그</div>
+          <div class="card-meta" id="chartMeta"></div>
+        </div>
+        <div class="card-acts">
+          <button class="btn btn-o" onclick="if(chartInst)chartInst.resetZoom()">↺ 줌</button>
+        </div>
+      </div>
+      <div style="position:relative;height:300px"><canvas id="mainChart"></canvas></div>
+    </div>`;
+
+  // 메타 정보
+  let meta = '';
+  for (const p of processed) {
+    const dir = p.dir === 'down' ? '↓ Down' : '↑ Up';
+    meta += `${dir} <b>${p.revCount}회차</b> (완전 ${p.fullRevs}바퀴${p.partialSegs?` + ${p.partialSegs}구간`:''}) &nbsp;`;
+  }
+  document.getElementById('chartMeta').innerHTML = meta;
+
+  // 배경 raw 데이터
+  const step = Math.max(1, Math.floor(pos.length / 4000));
+  const bgData = [];
+  for (let i = 0; i < pos.length; i += step) bgData.push({ x: timeMs[i], y: pos[i] });
+
+  const datasets = [{
+    label: 'raw', data: bgData,
+    borderColor: 'rgba(77,171,247,0.35)', backgroundColor: 'transparent',
+    borderWidth: 1.5, pointRadius: 0, tension: 0, parsing: false, showLine: true, order: 99,
+  }];
+
+  // 절점 마커 - 방향 그룹별 각도 계산하여 메타데이터 포함
+  // 전체 stops에서 방향별 절점 인덱스 매핑
+  const allStopPts = [];
+
+  for (const p of processed) {
+    const totalStops = p.stops.length;
+    const totalMoves = totalStops - 1;
+
+    for (let i = 0; i < totalStops; i++) {
+      const st = p.stops[i];
+      const mi = Math.floor((st.start + st.end) / 2);
+
+      let angleDeg, totalDeg, revIdx;
+
+      if (p.dir === 'down') {
+        // Down: 순방향
+        const segIdx = i % segsPerRev;
+        revIdx   = Math.floor(i / segsPerRev);
+        angleDeg = segIdx * degPerInterval;
+        totalDeg = revIdx * 360 + angleDeg;
+      } else {
+        // Up: 절점[i]의 누적 각도 = (totalMoves - i) * degPerInterval
+        // i=0(최하단) → totalMoves * deg = fullRevs * 360
+        // i=totalMoves(최상단) → 0°
+        const stepIdx = totalMoves - i; // 이 절점의 낮은쪽 누적 스텝
+        const segIdx = stepIdx % segsPerRev;
+        revIdx   = Math.floor(stepIdx / segsPerRev);
+        angleDeg = segIdx * degPerInterval;
+        totalDeg = revIdx * 360 + angleDeg;
+      }
+
+      allStopPts.push({
+        x: timeMs[mi],
+        y: st.rep,
+        dir: p.dir,
+        angleDeg,
+        totalDeg,
+        revIdx,
+        posVal: st.rep,
+      });
+    }
+  }
+
+  // 중복 제거 (Down 마지막 = Up 첫 번째 공유점)
+  const seen = new Set();
+  const uniquePts = allStopPts.filter(pt => {
+    const key = pt.x.toFixed(1);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  datasets.push({
+    label: '절점',
+    data: uniquePts,
+    borderColor: 'rgba(247,103,7,0.9)',
+    backgroundColor: uniquePts.map(pt => pt.dir === 'down' ? 'rgba(77,171,247,0.9)' : 'rgba(105,219,124,0.9)'),
+    pointRadius: 5,
+    pointHoverRadius: 8,
+    showLine: false,
+    parsing: false,
+    order: 1,
+  });
+
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  chartInst = new Chart(ctx, {
+    type: 'line', data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#8892b0', font: { size: 11 },
+          filter: i => i.text !== 'raw' } },
+        tooltip: {
+          mode: 'nearest', intersect: true,
+          filter: i => i.dataset.label === '절점',
+          callbacks: {
+            title: items => {
+              const pt = uniquePts[items[0].dataIndex];
+              if (!pt) return '';
+              const dirLabel = pt.dir === 'down' ? '↓ Down' : '↑ Up';
+              return `${dirLabel}  |  ${pt.totalDeg.toFixed(1)}° (${pt.revIdx+1}바퀴 ${pt.angleDeg.toFixed(1)}°)`;
+            },
+            label: items => {
+              const pt = uniquePts[items.dataIndex];
+              return [
+                ` 위치: ${pt.posVal.toFixed(4)} mm`,
+                ` 시간: ${(items.parsed.x / 1000).toFixed(3)} s`,
+              ];
+            },
+          }
+        },
+        zoom: {
+          zoom: { drag: { enabled: true, backgroundColor: 'rgba(92,124,250,.1)', borderColor: '#748ffc', borderWidth: 1 }, mode: 'xy' },
+          pan: { enabled: false },
+        },
+      },
+      scales: {
+        x: { type: 'linear', grid: { color: 'rgba(37,40,64,.8)' },
+             ticks: { color: '#8b92b8', maxTicksLimit: 10,
+               callback: v => v >= 1000 ? (v/1000).toFixed(1)+'s' : v+'ms' } },
+        y: { grid: { color: 'rgba(37,40,64,.8)' }, ticks: { color: '#8b92b8', precision: 4 } },
+      },
+    },
+  });
+}
+
+// ── Polar 차트 렌더링 ──────────────────────────────────────────
+function renderPolar(res) {
+  const { processed, s, degPerInterval, segsPerRev } = res;
+  const theorDisp = s.lead * (s.interval / s.totalSteps); // mm
+  const pDown = processed.find(p => p.dir === 'down');
+  const pUp   = processed.find(p => p.dir === 'up');
+
+  const area = document.getElementById('chartArea');
+
+  // polar 카드 삽입 (차트 카드 뒤에 추가)
+  const polarDiv = document.createElement('div');
+  polarDiv.className = 'chart-card';
+  polarDiv.style.cssText = 'margin-bottom:14px';
+  polarDiv.innerHTML = `
+    <div class="card-hdr">
+      <div>
+        <div class="card-title">구간 변위 극좌표 차트</div>
+        <div class="card-meta">원 = 이론치 기준 &nbsp;·&nbsp; <span style="color:#74c0fc">■</span> Down &nbsp;·&nbsp; <span style="color:#69db7c">■</span> Up &nbsp;·&nbsp; 실선=1회차 점선=2회차+</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;padding:8px 0">
+      <div style="text-align:center">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px">↓ Down</div>
+        <canvas id="polarDown" width="340" height="340"></canvas>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px">↑ Up</div>
+        <canvas id="polarUp" width="340" height="340"></canvas>
+      </div>
+    </div>`;
+  area.appendChild(polarDiv);
+
+  // 각도 → canvas 좌표 변환 (0°=위, 시계방향)
+  // 구간 중심 각도: 구간 시작 + degPerInterval/2
+  // 반지름: disp / theorDisp * baseR
+
+  drawPolarCanvas('polarDown', pDown, theorDisp, degPerInterval, segsPerRev, '#4dabf7');
+  drawPolarCanvas('polarUp',   pUp,   theorDisp, degPerInterval, segsPerRev, '#69db7c');
+}
+
+function drawPolarCanvas(canvasId, p, theorDisp, degPerInterval, segsPerRev, baseColor) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !p) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+
+  // 최대 반지름 (여백 포함)
+  const maxR = Math.min(cx, cy) - 28;
+  // 이론치 반지름 = maxR * 0.65 (여유 공간 확보)
+  const theorR = maxR * 0.65;
+
+  // 배경 지우기
+  ctx.clearRect(0, 0, W, H);
+
+  // 배경: 어두운 원
+  ctx.beginPath();
+  ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(22,25,36,0.8)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(37,40,64,0.6)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 보조 원 (0.5x, 1x=이론치, 1.5x)
+  const rings = [0.5, 1.0, 1.5];
+  rings.forEach(f => {
+    const r = theorR * f;
+    if (r > maxR) return;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = f === 1.0 ? 'rgba(255,212,59,0.5)' : 'rgba(37,40,64,0.8)';
+    ctx.lineWidth = f === 1.0 ? 1.5 : 1;
+    ctx.setLineDash(f === 1.0 ? [] : [4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 레이블
+    ctx.fillStyle = f === 1.0 ? 'rgba(255,212,59,0.8)' : 'rgba(69,77,106,0.9)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    const lv = f === 1.0 ? '이론치' : `×${f}`;
+    ctx.fillText(lv, cx, cy - r - 3);
+  });
+
+  // 방사선 (구간 경계)
+  for (let i = 0; i < segsPerRev; i++) {
+    const angleDeg = i * degPerInterval - 90; // 0°=위
+    const rad = angleDeg * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + maxR * Math.cos(rad), cy + maxR * Math.sin(rad));
+    ctx.strokeStyle = 'rgba(37,40,64,0.9)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.stroke();
+
+    // 각도 레이블
+    const labelR = maxR + 14;
+    ctx.fillStyle = 'rgba(136,146,176,0.9)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lx = cx + labelR * Math.cos(rad);
+    const ly = cy + labelR * Math.sin(rad);
+    ctx.fillText(`${i * degPerInterval}°`, lx, ly);
+  }
+
+  // 회차별 다각형 그리기
+  const revColors = [baseColor, baseColor + 'aa', baseColor + '66', baseColor + '44'];
+  const dashPatterns = [[], [6,3], [3,3], [2,4]];
+
+  for (let rev = p.revCount - 1; rev >= 0; rev--) {
+    const isPartial = rev >= p.fullRevs;
+    const alpha = isPartial ? 0.35 : 1.0;
+    const col = baseColor;
+    const dash = dashPatterns[Math.min(rev, dashPatterns.length - 1)];
+
+    // 구간별 변위값 수집
+    const pts = [];
+    for (let si = 0; si < segsPerRev; si++) {
+      const m = p.moves.find(mv => mv.segIdx === si && mv.revIdx === rev);
+      const disp = m ? m.disp : 0;
+      const r = theorR * (disp / theorDisp);
+      // 구간 중심 각도 (0°=위, 시계방향)
+      const centerDeg = si * degPerInterval + degPerInterval / 2 - 90;
+      const rad = centerDeg * Math.PI / 180;
+      pts.push({ x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad), disp, si });
+    }
+
+    if (pts.length === 0) continue;
+
+    // 다각형 그리기
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = rev === 0 ? 2 : 1.5;
+    ctx.setLineDash(dash);
+    ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.globalAlpha = alpha * 0.08;
+    ctx.fill();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // 꼭짓점 마커 + 값 표시
+    pts.forEach((pt, si) => {
+      if (!p.moves.find(mv => mv.segIdx === si && mv.revIdx === rev)) return;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, rev === 0 ? 4 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+
+      // 값 레이블 (1회차만)
+      if (rev === 0) {
+        const valStr = currentUnit === 'um'
+          ? (pt.disp * 1000).toFixed(1)
+          : pt.disp.toFixed(4);
+        // 레이블 위치: 꼭짓점 바깥쪽
+        const centerDeg = si * degPerInterval + degPerInterval / 2 - 90;
+        const rad = centerDeg * Math.PI / 180;
+        const lr = theorR * (pt.disp / theorDisp) + 12;
+        const lx = cx + lr * Math.cos(rad);
+        const ly = cy + lr * Math.sin(rad);
+        ctx.font = 'bold 9px monospace';
+        ctx.fillStyle = col;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(valStr, lx, ly);
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // 중심점
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(136,146,176,0.6)';
+  ctx.fill();
+
+  // 범례 (회차)
+  let legY = H - 14;
+  for (let rev = 0; rev < Math.min(p.revCount, 4); rev++) {
+    const isPartial = rev >= p.fullRevs;
+    const dash = dashPatterns[Math.min(rev, dashPatterns.length - 1)];
+    const x = 12 + rev * 70;
+    ctx.globalAlpha = isPartial ? 0.4 : 1;
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, legY); ctx.lineTo(x + 18, legY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(136,146,176,0.9)';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${rev+1}회차${isPartial?'*':''}`, x + 22, legY);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── 3D 시각화 ──────────────────────────────────────────────────
+let three3D = null; // { renderer, scene, camera, animId }
+
+function render3D(res) {
+  const { processed, s, degPerInterval, segsPerRev } = res;
+  const pDown = processed.find(p => p.dir === 'down');
+  const pUp   = processed.find(p => p.dir === 'up');
+  const theorDisp = s.lead * (s.interval / s.totalSteps);
+
+  const area = document.getElementById('chartArea');
+
+  // 이전 renderer 정리
+  if (three3D) {
+    cancelAnimationFrame(three3D.animId);
+    three3D.renderer.dispose();
+    three3D = null;
+  }
+
+  // 카드 삽입
+  const card = document.createElement('div');
+  card.className = 'chart-card';
+  card.style.cssText = 'margin-bottom:14px';
+  card.innerHTML = `
+    <div class="card-hdr">
+      <div>
+        <div class="card-title">3D 기울어짐 시각화</div>
+        <div class="card-meta">
+          높이 = 이론치 − 실제변위 &nbsp;·&nbsp; 변위 클수록 낮아짐 &nbsp;·&nbsp;
+          <span style="color:#74c0fc">■</span> Down 1회차 &nbsp;
+          <span style="color:#4a90e2">■</span> Down 2회차 &nbsp;
+          <span style="color:#69db7c">■</span> Up 1회차 &nbsp;
+          <span style="color:#2ecc71">■</span> Up 2회차
+        </div>
+      </div>
+      <div class="card-acts">
+        <button class="btn btn-o" onclick="reset3DCamera()">↺ 뷰 리셋</button>
+      </div>
+    </div>
+    <div style="position:relative">
+      <canvas id="canvas3D" style="width:100%;height:480px;display:block;cursor:grab"></canvas>
+      <div id="tooltip3D" style="position:absolute;display:none;background:rgba(16,18,28,.92);border:1px solid #252840;
+        border-radius:6px;padding:6px 10px;font-size:11px;color:#e4e8f5;pointer-events:none;line-height:1.7"></div>
+    </div>`;
+  area.appendChild(card);
+
+  // Three.js 초기화
+  const canvas = document.getElementById('canvas3D');
+  const W = canvas.parentElement.offsetWidth || 800;
+  const H = 480;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x10121c, 1);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x10121c, 0.025);
+
+  // 카메라
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.01, 200);
+  camera.position.set(0, 6, 10);
+  camera.lookAt(0, 0, 0);
+
+  // 조명
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dLight.position.set(5, 10, 5);
+  scene.add(dLight);
+  const dLight2 = new THREE.DirectionalLight(0x4dabf7, 0.3);
+  dLight2.position.set(-5, -5, -5);
+  scene.add(dLight2);
+
+  // 그리드
+  const grid = new THREE.GridHelper(12, 12, 0x252840, 0x1d2030);
+  scene.add(grid);
+
+  // 스케일 계산
+  const allDisps = [];
+  for (const p of [pDown, pUp].filter(Boolean))
+    for (const m of p.moves) if (m.revIdx < p.fullRevs) allDisps.push(m.disp);
+  const dispRange = allDisps.length
+    ? Math.max(...allDisps) - Math.min(...allDisps)
+    : theorDisp * 0.1;
+  const heightScale = 3.0 / (dispRange || theorDisp * 0.1);
+  const radius = 3.5; // 원 반지름 (Three.js 단위)
+
+  // 각 데이터셋 정의
+  const datasets = [
+    { p: pDown, rev: 0, color: 0x4dabf7, label: 'Down 1회차', yOffset: 0 },
+    { p: pDown, rev: 1, color: 0x1a5fa8, label: 'Down 2회차', yOffset: -0.05 },
+    { p: pUp,   rev: 0, color: 0x69db7c, label: 'Up 1회차',   yOffset:  0.05 },
+    { p: pUp,   rev: 1, color: 0x1a7a40, label: 'Up 2회차',   yOffset: -0.05 },
+  ].filter(d => d.p && d.rev < d.p.fullRevs);
+
+  const allMeshes = []; // 툴팁용
+
+  for (const ds of datasets) {
+    const { p, rev, color, yOffset } = ds;
+    const mat = new THREE.MeshPhongMaterial({
+      color, transparent: true, opacity: 0.85,
+      side: THREE.DoubleSide, shininess: 60,
+    });
+    const lineMat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
+
+    // 구간 절점 좌표 계산
+    const pts3D = [];
+    for (let si = 0; si < segsPerRev; si++) {
+      const m = p.moves.find(mv => mv.segIdx === si && mv.revIdx === rev);
+      const disp = m ? m.disp : theorDisp;
+      const height = (theorDisp - disp) * heightScale + yOffset;
+      // 각도: 구간 시작각 (0°=+Z 방향, 시계방향)
+      const angleDeg = si * degPerInterval;
+      const rad = (angleDeg - 90) * Math.PI / 180;
+      const x = radius * Math.cos(rad);
+      const z = radius * Math.sin(rad);
+      pts3D.push({ x, y: height, z, disp, angleDeg, si, m });
+    }
+
+    // 닫힌 폴리곤 (마지막→첫 번째 연결)
+    const lineGeo = new THREE.BufferGeometry();
+    const lineVerts = [];
+    for (let i = 0; i <= segsPerRev; i++) {
+      const pt = pts3D[i % segsPerRev];
+      lineVerts.push(pt.x, pt.y, pt.z);
+    }
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lineVerts, 3));
+    scene.add(new THREE.Line(lineGeo, lineMat));
+
+    // 채워진 면 (중심→각 구간 삼각형 팬)
+    const faceGeo = new THREE.BufferGeometry();
+    const faceVerts = [];
+    const cx3 = 0, cy3 = yOffset, cz3 = 0; // 중심점
+    for (let i = 0; i < segsPerRev; i++) {
+      const a = pts3D[i];
+      const b = pts3D[(i + 1) % segsPerRev];
+      faceVerts.push(cx3, cy3, cz3, a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+    faceGeo.setAttribute('position', new THREE.Float32BufferAttribute(faceVerts, 3));
+    faceGeo.computeVertexNormals();
+    const faceMesh = new THREE.Mesh(faceGeo, new THREE.MeshPhongMaterial({
+      color, transparent: true, opacity: 0.18,
+      side: THREE.DoubleSide,
+    }));
+    scene.add(faceMesh);
+
+    // 수직 드롭 라인 + 구체 마커
+    for (const pt of pts3D) {
+      // 드롭 라인 (구간 절점→그리드 바닥)
+      const dropGeo = new THREE.BufferGeometry();
+      dropGeo.setAttribute('position', new THREE.Float32BufferAttribute(
+        [pt.x, pt.y, pt.z, pt.x, 0, pt.z], 3));
+      scene.add(new THREE.Line(dropGeo,
+        new THREE.LineBasicMaterial({ color, opacity: 0.25, transparent: true })));
+
+      // 구체
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.10, 12, 12),
+        new THREE.MeshPhongMaterial({ color, shininess: 100 })
+      );
+      sphere.position.set(pt.x, pt.y, pt.z);
+      sphere.userData = { pt, ds };
+      scene.add(sphere);
+      allMeshes.push(sphere);
+    }
+  }
+
+  // 이론치 기준 원 (노란색, y=0)
+  const theorLineMat = new THREE.LineBasicMaterial({ color: 0xffd43b, opacity: 0.6, transparent: true });
+  const theorVerts = [];
+  for (let i = 0; i <= segsPerRev; i++) {
+    const angleDeg = (i % segsPerRev) * degPerInterval;
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    theorVerts.push(radius * Math.cos(rad), 0, radius * Math.sin(rad));
+  }
+  const theorGeo = new THREE.BufferGeometry();
+  theorGeo.setAttribute('position', new THREE.Float32BufferAttribute(theorVerts, 3));
+  scene.add(new THREE.Line(theorGeo, theorLineMat));
+
+  // 각도 레이블 (스프라이트)
+  for (let si = 0; si < segsPerRev; si++) {
+    const angleDeg = si * degPerInterval;
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    const lx = (radius + 0.7) * Math.cos(rad);
+    const lz = (radius + 0.7) * Math.sin(rad);
+    // Canvas 텍스처로 레이블
+    const cv = document.createElement('canvas');
+    cv.width = 80; cv.height = 36;
+    const c = cv.getContext('2d');
+    c.fillStyle = 'rgba(136,146,176,0.9)';
+    c.font = 'bold 20px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(`${angleDeg}°`, 40, 18);
+    const tex = new THREE.CanvasTexture(cv);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    sprite.position.set(lx, 0.2, lz);
+    sprite.scale.set(0.8, 0.36, 1);
+    scene.add(sprite);
+  }
+
+  // 마우스 오빗 컨트롤 (직접 구현)
+  let isDragging = false, prevMouse = { x: 0, y: 0 };
+  let spherical = { theta: 0.3, phi: 0.8, radius: 12 }; // 카메라 구면좌표
+
+  function updateCamera() {
+    camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+    camera.position.y = spherical.radius * Math.cos(spherical.phi);
+    camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+    camera.lookAt(0, 0, 0);
+  }
+  updateCamera();
+
+  canvas.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; canvas.style.cursor = 'grabbing'; });
+  window.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('mousemove', e => {
+    if (!isDragging) { handleHover(e); return; }
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    spherical.theta -= dx * 0.008;
+    spherical.phi   = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + dy * 0.008));
+    prevMouse = { x: e.clientX, y: e.clientY };
+    updateCamera();
+  });
+  canvas.addEventListener('wheel', e => {
+    spherical.radius = Math.max(4, Math.min(30, spherical.radius + e.deltaY * 0.01));
+    updateCamera();
+    e.preventDefault();
+  }, { passive: false });
+
+  // 툴팁 (raycasting)
+  const raycaster = new THREE.Raycaster();
+  const mouse2D = new THREE.Vector2();
+  const tooltip = document.getElementById('tooltip3D');
+
+  function handleHover(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse2D.x =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1;
+    mouse2D.y = -((e.clientY - rect.top)   / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse2D, camera);
+    const hits = raycaster.intersectObjects(allMeshes);
+    if (hits.length) {
+      const { pt, ds } = hits[0].object.userData;
+      const dispStr = currentUnit === 'um'
+        ? `${(pt.disp * 1000).toFixed(2)} μm`
+        : `${pt.disp.toFixed(4)} mm`;
+      const theorStr = currentUnit === 'um'
+        ? `${(theorDisp * 1000).toFixed(4)} μm`
+        : `${theorDisp.toFixed(4)} mm`;
+      const diff = pt.disp - theorDisp;
+      const diffStr = (diff >= 0 ? '+' : '') + (currentUnit === 'um'
+        ? `${(diff * 1000).toFixed(2)} μm`
+        : `${diff.toFixed(4)} mm`);
+      const diffColor = diff >= 0 ? '#4dabf7' : '#ff6b6b';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top  = (e.clientY - rect.top  - 10) + 'px';
+      tooltip.innerHTML = `
+        <b style="color:#e4e8f5">${ds.label}</b><br>
+        각도: <b>${pt.angleDeg}°→${pt.angleDeg + degPerInterval}°</b><br>
+        변위: <b>${dispStr}</b><br>
+        Δ이론: <b style="color:${diffColor}">${diffStr}</b>`;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  }
+
+  // 리셋 카메라
+  window.reset3DCamera = () => {
+    spherical = { theta: 0.3, phi: 0.8, radius: 12 };
+    updateCamera();
+  };
+
+  // 애니메이션 루프
+  function animate() {
+    const id = requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+    three3D.animId = id;
+  }
+  three3D = { renderer, scene, camera, animId: null };
+  animate();
+
+  // 리사이즈
+  const resizeObs = new ResizeObserver(() => {
+    const w = canvas.parentElement.offsetWidth;
+    renderer.setSize(w, H);
+    camera.aspect = w / H;
+    camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(canvas.parentElement);
+}
+
+function renderTable(res) {
+  const { processed, s, degPerInterval, segsPerRev } = res;
+  const unitLabel = currentUnit === 'um' ? 'μm' : 'mm';
+  const lead = s.lead;
+
+  // 구간 이론 이동거리 = 리드 × (인터벌/총분주)
+  const theoreticalDisp = lead * (s.interval / s.totalSteps); // mm
+
+  const area = document.getElementById('tableArea');
+  const pDown = processed.find(p => p.dir === 'down');
+  const pUp   = processed.find(p => p.dir === 'up');
+
+  // 각 방향별 컬럼 수 = 회차 수(측정+델타 통합) + 편차 = revCount + 1
+  const downCols = pDown ? pDown.revCount + 1 : 0;
+  const upCols   = pUp   ? pUp.revCount   + 1 : 0;
+
+  // 헤더 생성
+  let thead = `<thead>`;
+
+  // 1행: 그룹 헤더
+  thead += `<tr><th rowspan="2" style="width:60px">각도 (°)</th>`;
+  if (pDown) thead += `<th colspan="${downCols}" class="th-group-down">↓ Down</th>`;
+  if (pUp)   thead += `<th colspan="${upCols}"   class="th-group-up">↑ Up</th>`;
+  thead += `</tr>`;
+
+  // 2행: 회차 헤더 (회차 + Δ쌍, 편차)
+  thead += `<tr>`;
+  const buildRevHeaders = (p, subCls) => {
+    let h = '';
+    for (let r = 0; r < p.revCount; r++) {
+      const isPartial = r >= p.fullRevs;
+      const style = isPartial ? ' style="color:var(--text3)!important"' : '';
+      h += `<th class="${subCls}"${style}>${r+1}회차${isPartial?'*':''}<br><span style="font-size:9px;color:var(--yellow);font-weight:400">Δ이론</span></th>`;
+    }
+    h += `<th class="th-dev">측정값 편차</th>`;
+    return h;
+  };
+  if (pDown) thead += buildRevHeaders(pDown, 'th-sub-down');
+  if (pUp)   thead += buildRevHeaders(pUp,   'th-sub-up');
+  thead += `</tr></thead>`;
+
+  // 이론차 셀 렌더
+  function diffCell(disp, isPartial, extraClass='') {
+    const diff = disp - theoreticalDisp;
+    const sign = diff >= 0 ? '+' : '';
+    const color = diff >= 0 ? 'var(--blue)' : 'var(--red)';
+    const style = `color:${color};${isPartial ? 'opacity:.45;' : ''}`;
+    return `<td class="val-cell delta ${extraClass}" style="${style}">${sign}${fmt(diff)}</td>`;
+  }
+
+  // 방향별 × 회차별 델타 max/min 계산
+  // deltaExtremes[dir][revIdx] = { max, min }
+  const deltaExtremes = {};
+  for (const p of [pDown, pUp].filter(Boolean)) {
+    deltaExtremes[p.dir] = {};
+    for (let r = 0; r < p.fullRevs; r++) {
+      const vals = [];
+      for (let si = 0; si < segsPerRev; si++) {
+        const m = p.moves.find(mv => mv.segIdx === si && mv.revIdx === r);
+        if (m) vals.push(m.disp - theoreticalDisp);
+      }
+      if (vals.length) {
+        deltaExtremes[p.dir][r] = {
+          max: Math.max(...vals),
+          min: Math.min(...vals),
+        };
+      }
+    }
+  }
+
+  function getDeltaClass(dir, revIdx, disp, isPartial) {
+    if (isPartial) return '';
+    const ext = deltaExtremes[dir]?.[revIdx];
+    if (!ext) return '';
+    const diff = disp - theoreticalDisp;
+    const eps = 1e-9;
+    if (Math.abs(diff - ext.max) < eps) return 'delta-max';
+    if (Math.abs(diff - ext.min) < eps) return 'delta-min';
+    return '';
+  }
+
+  // tbody 생성 - 측정값+델타를 같은 td 내 flex로 표시
+  let tbody = `<tbody>`;
+  const totalAngleCols = (pDown ? downCols : 0) + (pUp ? upCols : 0);
+
+  // 셀 생성 헬퍼: 측정값(위) + 델타(아래)를 하나의 td에
+  function measDeltaTd(m, dir, r, measCls, isPartial) {
+    if (!m) return `<td><div class="cell-inner"><div class="cell-meas val-cell empty">—</div><div class="cell-delta"></div></div></td>`;
+    const measStyle = isPartial ? 'opacity:.5' : '';
+    const diff = m.disp - theoreticalDisp;
+    const sign = diff >= 0 ? '+' : '';
+    const color = diff >= 0 ? 'var(--blue)' : 'var(--red)';
+    const dCls  = getDeltaClass(dir, r, m.disp, isPartial);
+    const dStyle = `color:${color};${isPartial ? 'opacity:.4;' : ''}`;
+    return `<td><div class="cell-inner">
+      <div class="cell-meas val-cell ${measCls}${isPartial?' partial':''}" style="${measStyle}">${fmt(m.disp)}</div>
+      <div class="cell-delta delta-txt ${dCls}" style="${dStyle}">${sign}${fmt(diff)}</div>
+    </div></td>`;
+  }
+
+  // 편차 td
+  function devTd(dev) {
+    return dev !== null
+      ? `<td><div class="cell-dev val-cell dev-val">${fmt(dev)}</div></td>`
+      : `<td><div class="cell-dev val-cell empty">—</div></td>`;
+  }
+
+  for (let si = 0; si < segsPerRev; si++) {
+    const angleDeg = si * degPerInterval;
+    const endDeg   = angleDeg + degPerInterval;
+
+    // 절점 행
+    tbody += `<tr class="row-angle"><td class="angle-cell">${angleDeg.toFixed(1)}°</td>`;
+    for (let c = 0; c < totalAngleCols; c++) tbody += `<td></td>`;
+    tbody += `</tr>`;
+
+    // 구간 행 - 측정값+델타 한 행에
+    tbody += `<tr class="row-gap"><td class="angle-cell" style="color:var(--text3);font-size:9px">↕ ${angleDeg.toFixed(0)}°→${endDeg.toFixed(0)}°</td>`;
+
+    if (pDown) {
+      for (let r = 0; r < pDown.revCount; r++) {
+        const m = pDown.moves.find(mv => mv.segIdx === si && mv.revIdx === r);
+        tbody += measDeltaTd(m, 'down', r, 'down-val', r >= pDown.fullRevs);
+      }
+      tbody += devTd(pDown.devBySegIdx[si]);
+    }
+    if (pUp) {
+      for (let r = 0; r < pUp.revCount; r++) {
+        const m = pUp.moves.find(mv => mv.segIdx === si && mv.revIdx === r);
+        tbody += measDeltaTd(m, 'up', r, 'up-val', r >= pUp.fullRevs);
+      }
+      tbody += devTd(pUp.devBySegIdx[si]);
+    }
+    tbody += `</tr>`;
+  }
+
+  // 360° 절점 행
+  tbody += `<tr class="row-angle"><td class="angle-cell">360.0°</td>`;
+  for (let c = 0; c < totalAngleCols; c++) tbody += `<td></td>`;
+  tbody += `</tr>`;
+
+  // Total 행 — 측정값 주황+4, 델타 유지
+  tbody += `<tr class="row-total"><td class="total-label">Total</td>`;
+  const buildTotalCells = (p) => {
+    let h = '';
+    for (let r = 0; r < p.revCount; r++) {
+      if (r < p.fullRevs) {
+        const t = p.totals[r];
+        const ok = Math.abs(t - lead) < lead * 0.02;
+        const diff = t - lead;
+        const sign = diff >= 0 ? '+' : '';
+        const dcolor = diff >= 0 ? 'var(--blue)' : 'var(--red)';
+        h += `<td><div class="cell-inner">
+          <div class="cell-meas total-val total-meas">${fmt(t)}</div>
+          <div class="cell-delta" style="color:${dcolor};font-size:11px">${sign}${fmt(diff)}</div>
+        </div></td>`;
+      } else {
+        h += `<td class="total-val" style="color:var(--text3)">—</td>`;
+      }
+    }
+    if (p.totals.length >= 2) {
+      const td = Math.max(...p.totals) - Math.min(...p.totals);
+      h += `<td class="total-val dev-val">${fmt(td)}</td>`;
+    } else {
+      h += `<td class="total-val empty">—</td>`;
+    }
+    return h;
+  };
+  if (pDown) tbody += buildTotalCells(pDown);
+  if (pUp)   tbody += buildTotalCells(pUp);
+  tbody += `</tr></tbody>`;
+
+  // 이론 리드 정보
+  const leadStr     = currentUnit === 'um' ? `${(lead*1000).toFixed(1)} μm` : `${lead.toFixed(4)} mm`;
+  const theorStr    = currentUnit === 'um' ? `${(theoreticalDisp*1000).toFixed(4)} μm` : `${theoreticalDisp.toFixed(6)} mm`;
+
+  area.innerHTML = `
+    <div class="table-card">
+      <div class="table-hdr">
+        <div class="table-title">구간별 변위 분석</div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <span class="unit-info">이론 리드: <b>${leadStr}</b> &nbsp;·&nbsp; 구간 이론치: <b style="color:var(--yellow)">${theorStr}</b> &nbsp;·&nbsp; 단위: <b>${unitLabel}</b> &nbsp;·&nbsp; * 불완전 회차</span>
+          <span class="unit-info" style="color:var(--blue)">▲ Δ이론 양수</span>
+          <span class="unit-info" style="color:var(--red)">▼ Δ이론 음수</span>
+          <span class="unit-info" style="color:var(--green)">■ Total 2% 이내</span>
+          <span class="unit-info" style="color:var(--red)">■ Total 2% 초과</span>
+        </div>
+      </div>
+      <table class="atbl">${thead}${tbody}</table>
+    </div>`;
+}
+
+// ── 초기화 ────────────────────────────────────────────────────
+function resetAll() {
+  analysisResult = null;
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  if (three3D) { cancelAnimationFrame(three3D.animId); three3D.renderer.dispose(); three3D = null; }
+  document.getElementById('chartArea').innerHTML = '';
+  document.getElementById('tableArea').innerHTML = '';
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('uploadWrap').style.display = 'block';
+  document.getElementById('fileNameLabel').textContent = '';
+  document.getElementById('warnBox').classList.remove('show');
+  document.getElementById('fileIn').value = '';
+}
+</script>
+</body>
+</html>
