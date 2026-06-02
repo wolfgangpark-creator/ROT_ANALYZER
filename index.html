@@ -148,6 +148,14 @@ body{background:var(--bg);color:var(--text1);font-family:'Segoe UI',system-ui,sa
       <button class="unit-btn active" id="btnMm" onclick="setUnit('mm')">mm</button>
     </div>
   </div>
+  <div class="sep"></div>
+  <div class="sg">
+    <label>양끝 이동 제외</label>
+    <div class="unit-toggle">
+      <button class="unit-btn" id="btnTrimOff" onclick="setTrim(false)">OFF</button>
+      <button class="unit-btn active" id="btnTrimOn" onclick="setTrim(true)">ON</button>
+    </div>
+  </div>
   <div class="s-info" id="stepInfo"></div>
 </div>
 
@@ -172,8 +180,19 @@ body{background:var(--bg);color:var(--text1);font-family:'Segoe UI',system-ui,sa
 <script>
 // ── 상태 ──────────────────────────────────────────────────────
 let currentUnit = 'mm';
+let trimEnds = true; // 양끝 이동 제외 (기본 ON)
 let analysisResult = null;
 let chartInst = null;
+
+function setTrim(on) {
+  trimEnds = on;
+  document.getElementById('btnTrimOn').classList.toggle('active', on);
+  document.getElementById('btnTrimOff').classList.toggle('active', !on);
+  // 데이터가 있으면 재분석
+  if (analysisResult && analysisResult.pos) {
+    analyze(analysisResult.pos);
+  }
+}
 
 // ── 설정 ──────────────────────────────────────────────────────
 function S() {
@@ -370,9 +389,12 @@ function analyze(pos) {
   const warns = [];
   for (const g of groups) {
     const detected = g.stops.length - 1;
-    const rem = detected % s.moveCount;
+    // trim ON: 양끝 이동 2개 제외한 후 moveCount의 배수인지 체크
+    const effectiveMoves = trimEnds && detected >= 2 ? detected - 2 : detected;
+    const rem = effectiveMoves % s.moveCount;
     if (rem !== 0) {
-      warns.push(`${g.dir === 'down' ? '하강' : '상승'}: 감지 이동 ${detected}회 — 입력 ${s.moveCount}회의 배수 아님 (나머지 ${rem}). 최소샘플 값을 조정해보세요.`);
+      const trimStr = trimEnds ? ` (양끝 제외 후 ${effectiveMoves}회)` : '';
+      warns.push(`${g.dir === 'down' ? '하강' : '상승'}: 감지 이동 ${detected}회${trimStr} — 입력 ${s.moveCount}회의 배수 아님 (나머지 ${rem}). 최소샘플 값을 조정해보세요.`);
     }
   }
   if (warns.length) {
@@ -388,44 +410,58 @@ function analyze(pos) {
 
   // 각 방향 그룹 처리
   const processed = groups.map(g => {
-    const totalMoves = g.stops.length - 1;
+    const rawStops = g.stops;
+    // trim 적용: 양 끝에서 절점 1개씩 제거 → 첫/마지막 이동 제외
+    // rawStops가 N개면 이동은 N-1회. trim 시 양끝 이동 제외 = 절점 양끝 1개씩 제외
+    // 단 한 방향에서 최소 3개 절점이 있어야 trim 가능
+    let stops, trimmedHead = false, trimmedTail = false;
+    if (trimEnds && rawStops.length >= 3) {
+      stops = rawStops.slice(1, -1); // 양끝 절점 1개씩 제거
+      trimmedHead = true;
+      trimmedTail = true;
+    } else {
+      stops = rawStops;
+    }
+
+    const totalMoves = stops.length - 1;
     const fullRevs = Math.floor(totalMoves / segsPerRev);
     const partialSegs = totalMoves % segsPerRev;
     const revCount = fullRevs + (partialSegs > 0 ? 1 : 0);
 
     const moves = [];
-    for (let i = 1; i < g.stops.length; i++) {
-      const disp = Math.abs(g.stops[i].rep - g.stops[i-1].rep);
+    for (let i = 1; i < stops.length; i++) {
+      const disp = Math.abs(stops[i].rep - stops[i-1].rep);
 
       let segIdx, revIdx;
       if (g.dir === 'down') {
-        // Down: 순방향 (0→1→2→...→segsPerRev-1, 다음 회차...)
         segIdx = (i - 1) % segsPerRev;
         revIdx = Math.floor((i - 1) / segsPerRev);
       } else {
-        // Up: 역순
-        // 이동[i]는 절점[i-1](높은쪽)→절점[i](낮은쪽) 이동
-        // 낮은쪽 절점의 누적 각도 = (totalMoves - i) * degPerInterval
-        // 이 구간은 낮은쪽~높은쪽, 즉 (totalMoves-i)*deg → (totalMoves-i+1)*deg
-        // segIdx = (totalMoves - i) % segsPerRev (낮은쪽 절점의 구간 내 위치)
-        // revIdx = floor((totalMoves - i) / segsPerRev)
-        const lowerStepIdx = totalMoves - i; // 낮은쪽 절점의 순서 인덱스
+        const lowerStepIdx = totalMoves - i;
         segIdx = lowerStepIdx % segsPerRev;
         revIdx = Math.floor(lowerStepIdx / segsPerRev);
       }
 
-      moves.push({ disp, segIdx, revIdx, startRep: g.stops[i-1].rep, endRep: g.stops[i].rep });
+      moves.push({ disp, segIdx, revIdx, startRep: stops[i-1].rep, endRep: stops[i].rep });
     }
 
     // Total per full rev
     const totals = [];
     for (let r = 0; r < fullRevs; r++) {
-      const startRep = g.stops[r * segsPerRev].rep;
-      const endRep   = g.stops[(r + 1) * segsPerRev].rep;
+      const startRep = stops[r * segsPerRev].rep;
+      const endRep   = stops[(r + 1) * segsPerRev].rep;
       totals.push(Math.abs(endRep - startRep));
     }
 
-    return { dir: g.dir, stops: g.stops, moves, fullRevs, partialSegs, revCount, totals, segsPerRev };
+    // rawStops와 trim 정보를 그대로 보존 (로그 그래프 회색 처리용)
+    return {
+      dir: g.dir,
+      stops,         // trim된 절점 (분석용)
+      rawStops,      // 원본 절점 (그래프용)
+      trimmedHead,
+      trimmedTail,
+      moves, fullRevs, partialSegs, revCount, totals, segsPerRev
+    };
   });
 
   // 세그먼트별 편차 계산 (완전 회차만)
@@ -444,6 +480,11 @@ function analyze(pos) {
   // 표시
   document.getElementById('uploadWrap').style.display = 'none';
   document.getElementById('content').style.display = 'block';
+
+  // 차트 영역 클리어 (재분석 시 중복 방지)
+  document.getElementById('chartArea').innerHTML = '';
+  if (three3D) { cancelAnimationFrame(three3D.animId); three3D.renderer.dispose(); three3D = null; }
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
 
   renderChart(analysisResult);
   renderPolar(analysisResult);
@@ -478,6 +519,9 @@ function renderChart(res) {
     const dir = p.dir === 'down' ? '↓ Down' : '↑ Up';
     meta += `${dir} <b>${p.revCount}회차</b> (완전 ${p.fullRevs}바퀴${p.partialSegs?` + ${p.partialSegs}구간`:''}) &nbsp;`;
   }
+  if (trimEnds) {
+    meta += `&nbsp;·&nbsp; <span style="color:#888">■ 미사용 절점</span> (양끝 이동 제외)`;
+  }
   document.getElementById('chartMeta').innerHTML = meta;
 
   // 배경 raw 데이터
@@ -491,45 +535,51 @@ function renderChart(res) {
     borderWidth: 1.5, pointRadius: 0, tension: 0, parsing: false, showLine: true, order: 99,
   }];
 
-  // 절점 마커 - 방향 그룹별 각도 계산하여 메타데이터 포함
-  // 전체 stops에서 방향별 절점 인덱스 매핑
+  // 절점 마커 - rawStops 기반 (제외된 절점도 포함, 단 회색 표시)
   const allStopPts = [];
 
   for (const p of processed) {
-    const totalStops = p.stops.length;
-    const totalMoves = totalStops - 1;
+    // rawStops에서 사용/미사용 판별
+    // trim ON 시: rawStops[0]과 rawStops[last]는 미사용
+    // 단, 그 사이의 모든 절점은 사용 (분석 stops에 포함됨)
+    const raw = p.rawStops;
+    const totalRaw = raw.length;
+    // trim된 분석용 stops의 첫 절점이 rawStops의 어느 인덱스인지
+    const startIdx = p.trimmedHead ? 1 : 0;
+    const endIdx   = p.trimmedTail ? totalRaw - 2 : totalRaw - 1;
+    // 분석 stops 기준 totalMoves
+    const analyzedTotalMoves = p.stops.length - 1;
 
-    for (let i = 0; i < totalStops; i++) {
-      const st = p.stops[i];
+    for (let rawI = 0; rawI < totalRaw; rawI++) {
+      const st = raw[rawI];
       const mi = Math.floor((st.start + st.end) / 2);
+      const isUsed = (rawI >= startIdx && rawI <= endIdx);
 
-      let angleDeg, totalDeg, revIdx;
-
-      if (p.dir === 'down') {
-        // Down: 순방향
-        const segIdx = i % segsPerRev;
-        revIdx   = Math.floor(i / segsPerRev);
-        angleDeg = segIdx * degPerInterval;
-        totalDeg = revIdx * 360 + angleDeg;
-      } else {
-        // Up: 절점[i]의 누적 각도 = (totalMoves - i) * degPerInterval
-        // i=0(최하단) → totalMoves * deg = fullRevs * 360
-        // i=totalMoves(최상단) → 0°
-        const stepIdx = totalMoves - i; // 이 절점의 낮은쪽 누적 스텝
-        const segIdx = stepIdx % segsPerRev;
-        revIdx   = Math.floor(stepIdx / segsPerRev);
-        angleDeg = segIdx * degPerInterval;
-        totalDeg = revIdx * 360 + angleDeg;
+      let angleDeg = null, totalDeg = null, revIdx = null;
+      if (isUsed) {
+        // 분석 stops 인덱스
+        const i = rawI - startIdx;
+        if (p.dir === 'down') {
+          const segIdx = i % segsPerRev;
+          revIdx   = Math.floor(i / segsPerRev);
+          angleDeg = segIdx * degPerInterval;
+          totalDeg = revIdx * 360 + angleDeg;
+        } else {
+          const stepIdx = analyzedTotalMoves - i;
+          const segIdx = stepIdx % segsPerRev;
+          revIdx   = Math.floor(stepIdx / segsPerRev);
+          angleDeg = segIdx * degPerInterval;
+          totalDeg = revIdx * 360 + angleDeg;
+        }
       }
 
       allStopPts.push({
         x: timeMs[mi],
         y: st.rep,
         dir: p.dir,
-        angleDeg,
-        totalDeg,
-        revIdx,
+        angleDeg, totalDeg, revIdx,
         posVal: st.rep,
+        isUsed,
       });
     }
   }
@@ -539,15 +589,19 @@ function renderChart(res) {
   const uniquePts = allStopPts.filter(pt => {
     const key = pt.x.toFixed(1);
     if (seen.has(key)) return false;
-    seen.add(key); return true;
+    seen.add(key);
+    return true;
   });
 
   datasets.push({
     label: '절점',
     data: uniquePts,
     borderColor: 'rgba(247,103,7,0.9)',
-    backgroundColor: uniquePts.map(pt => pt.dir === 'down' ? 'rgba(77,171,247,0.9)' : 'rgba(105,219,124,0.9)'),
-    pointRadius: 5,
+    backgroundColor: uniquePts.map(pt => {
+      if (!pt.isUsed) return 'rgba(128,128,128,0.7)'; // 미사용 회색
+      return pt.dir === 'down' ? 'rgba(77,171,247,0.9)' : 'rgba(105,219,124,0.9)';
+    }),
+    pointRadius: uniquePts.map(pt => pt.isUsed ? 5 : 4),
     pointHoverRadius: 8,
     showLine: false,
     parsing: false,
@@ -570,6 +624,9 @@ function renderChart(res) {
             title: items => {
               const pt = uniquePts[items[0].dataIndex];
               if (!pt) return '';
+              if (!pt.isUsed) {
+                return `${pt.dir === 'down' ? '↓ Down' : '↑ Up'}  |  미사용 절점`;
+              }
               const dirLabel = pt.dir === 'down' ? '↓ Down' : '↑ Up';
               return `${dirLabel}  |  ${pt.totalDeg.toFixed(1)}° (${pt.revIdx+1}바퀴 ${pt.angleDeg.toFixed(1)}°)`;
             },
